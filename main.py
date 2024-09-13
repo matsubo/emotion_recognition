@@ -1,7 +1,9 @@
 import cv2
 import face_recognition
 from deepface import DeepFace
-import numpy as np
+import json
+import os
+import sys
 
 def process_video(video_path):
     # Open the video file
@@ -11,9 +13,12 @@ def process_video(video_path):
     fps = video.get(cv2.CAP_PROP_FPS)
     frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
     
-    emotions = []
+    emotions_data = []
     
-    for frame_number in range(frame_count):
+    for frame_number in range(0, frame_count, 5):  # Process every 5th frame
+        # Set the frame position
+        video.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        
         # Read a frame from the video
         success, frame = video.read()
         if not success:
@@ -34,24 +39,28 @@ def process_video(video_path):
             try:
                 result = DeepFace.analyze(face_image, actions=['emotion'], enforce_detection=False)
                 dominant_emotion = result[0]['dominant_emotion']
-                emotions.append(dominant_emotion)
+                
+                # Calculate the time in seconds
+                time_in_seconds = frame_number / fps
+                
+                # Append the emotion data
+                emotions_data.append({
+                    "time": time_in_seconds,
+                    "emotion": dominant_emotion
+                })
             except Exception as e:
-                print(f"Error in emotion detection: {str(e)}")
-        
-        # Process every 5th frame to reduce computation (adjust as needed)
-        video.set(cv2.CAP_PROP_POS_FRAMES, frame_number + 5)
+                print(f"Error in emotion detection at frame {frame_number}: {str(e)}")
     
     video.release()
     
-    # Analyze emotions
-    if emotions:
-        emotion_counts = {emotion: emotions.count(emotion) for emotion in set(emotions)}
-        dominant_video_emotion = max(emotion_counts, key=emotion_counts.get)
-        print(f"Dominant emotion in the video: {dominant_video_emotion}")
-        print(f"Emotion distribution: {emotion_counts}")
-    else:
-        print("No emotions detected in the video.")
+    # Save emotions data to JSON file
+    # Print emotions data to standard output
+    print(json.dumps(emotions_data, ensure_ascii=False, indent=4))
 
 # Usage
-video_path = 'trim.mp4'
+if len(sys.argv) < 2:
+    print("Please provide the video file path as an argument.")
+    sys.exit(1)
+
+video_path = sys.argv[1]
 process_video(video_path)
